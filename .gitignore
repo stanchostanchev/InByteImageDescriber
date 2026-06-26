@@ -1,0 +1,22 @@
+# Android
+*.iml
+.gradle/
+.idea/
+local.properties
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+
+# Model files — too large for git
+app/src/main/assets/*.gguf
+app/src/main/assets/models/*.gguf
+
+# llama.cpp is an embedded repo — track only our own C++ files
+app/src/main/cpp/llama.cpp/
+llama.cpp/
+llama-lib/
