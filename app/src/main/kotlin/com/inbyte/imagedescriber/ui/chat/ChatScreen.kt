@@ -18,6 +18,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -74,6 +75,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -81,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.inbyte.imagedescriber.R
 import com.inbyte.imagedescriber.model.ChatMessage
 import com.inbyte.imagedescriber.model.MessageRole
 
@@ -110,10 +113,21 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Samodyva", style = MaterialTheme.typography.titleLarge)
-                        Text("Story", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_launcher_photo),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Samodyva", style = MaterialTheme.typography.titleLarge)
+                            Text("Fairy Tale", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -146,7 +160,7 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Tap the photo icon to select an image, then tap Send to describe it.",
+                                    text = "Your fairy tale will appear here once you generate one from a drawing.",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,

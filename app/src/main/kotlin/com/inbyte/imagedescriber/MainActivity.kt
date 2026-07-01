@@ -126,7 +126,7 @@ private fun MainApp() {
                                     }
                                 },
                                 icon = { Icon(Icons.Outlined.PhotoLibrary, contentDescription = null) },
-                                label = { Text("Images") },
+                                label = { Text("Drawings") },
                             )
                             NavigationBarItem(
                                 selected = currentRoute == ROUTE_STORY,
@@ -138,7 +138,7 @@ private fun MainApp() {
                                     }
                                 },
                                 icon = { Icon(Icons.Outlined.AutoStories, contentDescription = null) },
-                                label = { Text("Story") },
+                                label = { Text("Fairy Tale") },
                             )
                         }
                     }
