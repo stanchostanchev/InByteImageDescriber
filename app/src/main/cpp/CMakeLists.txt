@@ -8,6 +8,12 @@ set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-O3 -fno-finite-math-only)
 add_link_options(-O3)
 
+# Required for Google Play: native libraries must support 16 KB memory page devices.
+# Explicit regardless of NDK default, since ELF segment alignment is what's actually checked.
+if(ANDROID)
+    add_link_options("-Wl,-z,max-page-size=16384")
+endif()
+
 # ── llama.cpp ─────────────────────────────────────────────────────────────────
 set(LLAMA_CPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp")
 set(MTMD_DIR      "${LLAMA_CPP_DIR}/tools/mtmd")

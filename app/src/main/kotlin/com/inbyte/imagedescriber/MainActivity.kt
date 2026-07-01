@@ -4,10 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Icon
@@ -18,13 +21,20 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.delay
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -51,6 +61,38 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             InByteTheme {
+                var showSplash by remember { mutableStateOf(true) }
+                LaunchedEffect(Unit) {
+                    delay(5000)
+                    showSplash = false
+                }
+
+                if (showSplash) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF6D764F)),
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.splash_image),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .align(Alignment.Center),
+                        )
+                    }
+                } else {
+                MainApp()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainApp() {
                 val navController = rememberNavController()
                 val currentEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = currentEntry?.destination?.route
@@ -85,18 +127,6 @@ class MainActivity : ComponentActivity() {
                                 },
                                 icon = { Icon(Icons.Outlined.PhotoLibrary, contentDescription = null) },
                                 label = { Text("Images") },
-                            )
-                            NavigationBarItem(
-                                selected = currentRoute == ROUTE_DESCRIPTION,
-                                onClick = {
-                                    navController.navigate(ROUTE_DESCRIPTION) {
-                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = { Icon(Icons.Outlined.Description, contentDescription = null) },
-                                label = { Text("Description") },
                             )
                             NavigationBarItem(
                                 selected = currentRoute == ROUTE_STORY,
@@ -162,7 +192,4 @@ class MainActivity : ComponentActivity() {
                         sheetState = describeSheetState,
                     )
                 }
-            }
-        }
-    }
 }

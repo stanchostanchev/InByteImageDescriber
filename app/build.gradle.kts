@@ -9,6 +9,7 @@ plugins {
 android {
     namespace = "com.inbyte.imagedescriber"
     compileSdk = libs.versions.compileSdk.get().toInt()
+    ndkVersion = "29.0.13846066"
 
     defaultConfig {
         applicationId = "com.inbyte.imagedescriber"

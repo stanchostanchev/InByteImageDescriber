@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.InByteImageDescriber" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Plain solid-color starting window (no system icon rendering, which can leave OEM
+         drop-shadow/highlight artifacts around adaptive icons). Matches the in-app Compose
+         splash background so the transition looks seamless. -->
+    <style name="Theme.InByteImageDescriber.Splash" parent="Theme.InByteImageDescriber">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
 </resources>
