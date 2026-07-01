@@ -10,9 +10,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
@@ -80,29 +83,29 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color(0xFF6D764F)),
                     ) {
-                        // Matches the splash image's own aspect ratio, so the progress bar's
-                        // bottom padding is relative to the image's real edge, not the screen's
-                        // (the image may be letterboxed if its aspect ratio differs from the device's).
-                        Box(
+                        // The Column sizes the image by its own aspect ratio (not full screen
+                        // height), so the progress bar sits truly below the image's real bottom
+                        // edge instead of overlapping it.
+                        Column(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .fillMaxSize()
-                                .aspectRatio(768f / 1376f),
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Image(
                                 painter = painterResource(R.drawable.splash_image),
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(768f / 1376f),
                             )
+                            Spacer(Modifier.height(20.dp))
                             LinearProgressIndicator(
                                 progress = { splashProgress.value },
                                 color = Color(0xFF1F3A1A),
                                 trackColor = Color.Black.copy(alpha = 0.35f),
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .padding(bottom = 10.dp)
-                                    .fillMaxWidth(0.6f),
+                                modifier = Modifier.fillMaxWidth(0.6f),
                             )
                         }
                     }

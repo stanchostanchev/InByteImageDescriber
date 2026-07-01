@@ -51,6 +51,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -172,15 +174,23 @@ fun DescriptionBody(
                         modifier = Modifier
                             .matchParentSize()
                             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f), RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center,
+                        contentAlignment = Alignment.TopStart,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(16.dp),
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFF3B4A22),
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 3.dp,
+                            )
+                            Spacer(Modifier.width(8.dp))
                             Text(
                                 text = "Exploring the drawing...",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF3B4A22),
                             )
                         }
                     }

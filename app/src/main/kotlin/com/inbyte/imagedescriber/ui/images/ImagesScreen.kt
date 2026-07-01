@@ -33,6 +33,8 @@ import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -68,6 +70,10 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.inbyte.imagedescriber.R
 
+// Set to true to show the "From gallery" / "From files" options for adding user images
+// in the AppBar menu. Off by default — the app currently ships with curated asset drawings only.
+private const val SHOW_ADD_IMAGE_MENU_OPTIONS = false
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImagesScreen(
@@ -80,6 +86,7 @@ fun ImagesScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var isFeedMode by rememberSaveable { mutableStateOf(true) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     // Picker for photo gallery (single or multiple)
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -124,28 +131,38 @@ fun ImagesScreen(
                     )
                 }
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = "Add images")
+                    Icon(Icons.Outlined.MoreVert, contentDescription = "More options")
                 }
                 DropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
+                    if (SHOW_ADD_IMAGE_MENU_OPTIONS) {
+                        DropdownMenuItem(
+                            text = { Text("From gallery") },
+                            leadingIcon = { Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                galleryLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("From files") },
+                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                fileLauncher.launch(arrayOf("image/*"))
+                            },
+                        )
+                    }
                     DropdownMenuItem(
-                        text = { Text("From gallery") },
-                        leadingIcon = { Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = null) },
+                        text = { Text("Settings") },
+                        leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
                         onClick = {
                             menuExpanded = false
-                            galleryLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("From files") },
-                        leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            fileLauncher.launch(arrayOf("image/*"))
+                            showSettingsDialog = true
                         },
                     )
                     DropdownMenuItem(
@@ -159,6 +176,17 @@ fun ImagesScreen(
                 }
             },
         )
+
+        if (showSettingsDialog) {
+            AlertDialog(
+                onDismissRequest = { showSettingsDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showSettingsDialog = false }) { Text("OK") }
+                },
+                title = { Text("Settings") },
+                text = { Text("No settings available yet.") },
+            )
+        }
 
         if (showAboutDialog) {
             val versionName = remember {
