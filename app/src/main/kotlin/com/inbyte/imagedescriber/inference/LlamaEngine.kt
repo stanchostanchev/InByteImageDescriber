@@ -24,14 +24,23 @@ class LlamaEngine @Inject constructor() {
 
     val isLoaded: Boolean get() = nativeHandle != 0L
 
+    // Tracks which model file is currently loaded on the native side so callers
+    // sharing this singleton (ChatViewModel + DescriptionViewModel) don't reload
+    // unnecessarily — or worse, assume the wrong model is loaded.
+    @Volatile
+    var loadedModelPath: String = ""
+        private set
+
     fun loadModel(
         modelPath: String,
         clipModelPath: String = "",
         contextSize: Int = 2048,
         threads: Int = 4,
     ): Boolean {
+        if (loadedModelPath == modelPath && nativeHandle != 0L) return true
         if (nativeHandle != 0L) free()
         nativeHandle = nativeLoadModel(modelPath, clipModelPath, contextSize, threads)
+        loadedModelPath = if (nativeHandle != 0L) modelPath else ""
         return nativeHandle != 0L
     }
 
@@ -114,6 +123,7 @@ class LlamaEngine @Inject constructor() {
             nativeFree(nativeHandle)
             nativeHandle = 0L
         }
+        loadedModelPath = ""
     }
 
     // ── JNI declarations ────────────────────────────────────────────────────

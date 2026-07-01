@@ -23,8 +23,6 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 
-private enum class LoadedModel { NONE, SMOLVLM, QWEN3 }
-
 // Set to true to show Qwen3 <think>…</think> reasoning in the chat
 private const val SHOW_QWEN_REASONING = false
 
@@ -42,7 +40,7 @@ class ChatViewModel @Inject constructor(
     private var smolvlmPath: String = ""
     private var clipPath: String = ""
     private var qwenPath: String = ""
-    private var currentModel = LoadedModel.NONE
+    @Volatile private var isSending = false
 
     init {
         loadModelFromAssets()
@@ -67,7 +65,6 @@ class ChatViewModel @Inject constructor(
                     contextSize   = 2048,
                     threads       = 4,
                 )
-                if (loaded) currentModel = LoadedModel.SMOLVLM
                 _uiState.update {
                     it.copy(
                         isModelLoaded  = loaded,
@@ -81,27 +78,27 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Ensures SmolVLM is loaded. Returns true on success. */
+    /** Ensures SmolVLM is loaded. Returns true on success. LlamaEngine itself
+     *  dedupes if it's already the active model (tracked on the shared singleton,
+     *  so it stays correct even when DescriptionViewModel swaps models in between). */
     private suspend fun ensureSmolVLM(): Boolean {
-        if (currentModel == LoadedModel.SMOLVLM) return true
+        if (llamaEngine.loadedModelPath == smolvlmPath) return true
         _uiState.update { it.copy(loadingMessage = "Loading vision model…") }
         val ok = withContext(Dispatchers.IO) {
             llamaEngine.loadModel(smolvlmPath, clipPath, 2048, 4)
         }
-        currentModel = if (ok) LoadedModel.SMOLVLM else LoadedModel.NONE
         _uiState.update { it.copy(loadingMessage = null) }
         return ok
     }
 
     /** Ensures Qwen3 is loaded. Returns true on success. */
     private suspend fun ensureQwen3(): Boolean {
-        if (currentModel == LoadedModel.QWEN3) return true
+        if (llamaEngine.loadedModelPath == qwenPath) return true
         _uiState.update { it.copy(loadingMessage = "Loading text model…") }
         val ok = withContext(Dispatchers.IO) {
             // Empty clip path = text-only mode; same llm_inference.so, no symbol conflicts
             llamaEngine.loadModel(qwenPath, "", 3072, 4)
         }
-        currentModel = if (ok) LoadedModel.QWEN3 else LoadedModel.NONE
         _uiState.update { it.copy(loadingMessage = null) }
         return ok
     }
@@ -122,9 +119,16 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(inputText = text) }
     }
 
+    fun sendStory(text: String) {
+        _uiState.update { it.copy(messages = emptyList(), inputText = text) }
+        sendMessage()
+    }
+
     fun sendMessage() {
+        if (isSending) return
+        isSending = true
         val state = _uiState.value
-        if (state.isGenerating || !state.isModelLoaded) return
+        if (state.isGenerating || !state.isModelLoaded) { isSending = false; return }
 
         val userText = state.inputText.trim().ifEmpty { "Describe the image" }
         val imageUri = state.pendingImageUri
@@ -151,6 +155,7 @@ class ChatViewModel @Inject constructor(
                 errorMessage    = null,
             )
         }
+        isSending = false
 
         viewModelScope.launch {
             try {
@@ -169,11 +174,6 @@ class ChatViewModel @Inject constructor(
                         }
                     appendToken(assistantId, "\n\n_SmolVLM 500M_")
                     markDone(assistantId)
-
-                    // Bulgarian translation of description
-                    if (description.isNotBlank()) {
-                        addTranslation(description.toString())
-                    }
 
                     // Subjects & Actions (code-based)
                     if (description.isNotBlank()) {
@@ -210,16 +210,24 @@ class ChatViewModel @Inject constructor(
                             when {
                                 token.contains("<think>")      -> inThink = true
                                 token.contains("</think>")     -> inThink = false
-                                token.contains("<|im_end|>")   -> { /* skip */ }
-                                token.contains("<|im_start|>") -> { /* skip */ }
+                                token.contains("<|im_end|>")   -> { llamaEngine.cancel() }
+                                token.contains("<|im_start|>") -> { llamaEngine.cancel() }
                                 inThink -> thinkBuf.append(token)
                                 else -> {
                                     output.append(token)
                                     appendToken(assistantId, token)
+                                    if (isRepeating(output.toString()) || isMetaCommentary(output.toString())) {
+                                        llamaEngine.cancel()
+                                    }
                                 }
                             }
                         }
-                        return output.toString()
+                        // Trim at the last story-ending sentence and sync the displayed bubble
+                        val trimmed = trimAtStoryEnd(output.toString())
+                        if (trimmed != output.toString()) {
+                            setMessageText(assistantId, trimmed)
+                        }
+                        return trimmed
                     }
 
                     val topicKeyword = extractTopicKeyword(userText)
@@ -252,9 +260,6 @@ class ChatViewModel @Inject constructor(
                     markDone(assistantId)
 
                     Log.d("InByteVM", "correctedOutput blank=${correctedOutput.isBlank()} len=${correctedOutput.length}")
-                    if (correctedOutput.isNotBlank()) {
-                        addTranslation(correctedOutput)
-                    }
                 }
 
             } catch (e: Exception) {
@@ -271,6 +276,14 @@ class ChatViewModel @Inject constructor(
         _uiState.update { s ->
             s.copy(messages = s.messages.map { m ->
                 if (m.id == msgId) m.copy(text = m.text + token) else m
+            })
+        }
+    }
+
+    private fun setMessageText(msgId: String, text: String) {
+        _uiState.update { s ->
+            s.copy(messages = s.messages.map { m ->
+                if (m.id == msgId) m.copy(text = text) else m
             })
         }
     }
@@ -477,6 +490,48 @@ class ChatViewModel @Inject constructor(
         if (subjects.isNotEmpty()) sb.append("Subjects:\n").append(subjects.joinToString("\n") { "• $it" })
         if (actions.isNotEmpty())  sb.append("\n\nActions:\n").append(actions.joinToString("\n") { "• $it" })
         return sb.toString().trim()
+    }
+
+    // Detect repetition by checking if a phrase of 40-120 chars repeats 3+ times at the end
+    private fun isRepeating(text: String): Boolean {
+        if (text.length < 120) return false
+        val tail = text.takeLast(400)
+        for (len in 40..120) {
+            val phrase = tail.takeLast(len)
+            val count = tail.windowed(len).count { it == phrase }
+            if (count >= 3) return true
+        }
+        return false
+    }
+
+    private val metaCommentaryMarkers = listOf(
+        "the text is", "the story is a", "this is an example", "the author's choice",
+        "the author uses", "this story uses", "in this story,", "note:", "explanation:",
+        "the passage", "as you can see", "this fairy tale",
+    )
+
+    private fun isMetaCommentary(text: String): Boolean {
+        if (text.length < 200) return false
+        val lower = text.lowercase()
+        return metaCommentaryMarkers.any { lower.contains(it) }
+    }
+
+    private fun trimAtStoryEnd(text: String): String {
+        val endMarkers = listOf("the end.", "the end!", "the end…", "the end")
+        val lower = text.lowercase()
+        for (marker in endMarkers) {
+            val idx = lower.indexOf(marker)
+            if (idx >= 0) {
+                return text.substring(0, idx + marker.length)
+            }
+        }
+        for (marker in metaCommentaryMarkers) {
+            val idx = lower.indexOf(marker)
+            if (idx >= 0) {
+                return text.substring(0, idx).trimEnd()
+            }
+        }
+        return text
     }
 
     fun dismissError() {
