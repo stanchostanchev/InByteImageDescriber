@@ -1,5 +1,6 @@
 package com.inbyte.imagedescriber.ui.description
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +14,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
@@ -36,6 +41,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -57,8 +65,6 @@ fun DescriptionScreen(
     if (selectedImageUri != null) {
         viewModel.setImageAndDescribe(selectedImageUri)
     }
-    val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
@@ -75,65 +81,133 @@ fun DescriptionScreen(
             ),
         )
 
-        Column(
+        DescriptionBody(
+            viewModel = viewModel,
+            onGenerateFairyTale = onGenerateFairyTale,
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        )
+    }
+}
+
+/** Shared body content (image, describe button, classification, description) reused by both
+ *  the full Description tab and the bottom sheet shown after tapping an image in the Images tab. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun DescriptionBody(
+    viewModel: DescriptionViewModel,
+    onGenerateFairyTale: (String) -> Unit = {},
+    showDescriptionCard: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val isDescribing = uiState.isGenerating || uiState.loadingMessage != null
+    var revealDescription by remember(uiState.imageUri) { mutableStateOf(false) }
+    val showDescription = showDescriptionCard || revealDescription
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
             // ── Image area ────────────────────────────────────────────────────
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (uiState.imageUri != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(uiState.imageUri)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f),
-                    )
-                } else {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (uiState.imageUri != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(uiState.imageUri)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f),
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "Tap an image in the Images tab",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(24.dp),
+                            )
+                        }
+                    }
+                }
+                if (!showDescription && isDescribing) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f),
+                            .matchParentSize()
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f), RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "Tap an image in the Images tab",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(24.dp),
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Exploring the drawing...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+                if (!showDescriptionCard) {
+                    IconButton(
+                        onClick = { revealDescription = !revealDescription },
+                        enabled = uiState.description.isNotBlank() && !isDescribing,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f), CircleShape),
+                    ) {
+                        Icon(
+                            imageVector = if (showDescription) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription = if (showDescription) "Hide description" else "Show description",
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
             }
 
             // ── Button ───────────────────────────────────────────────────────
-            when {
-                uiState.isGenerating -> Button(
-                    onClick = { viewModel.stopGeneration() },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Outlined.Stop, contentDescription = null)
-                    Text(" Stop", modifier = Modifier.padding(start = 4.dp))
-                }
-                else -> Button(
-                    onClick = { viewModel.describe() },
-                    enabled = uiState.imageUri != null && uiState.isModelReady,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
-                    Text(" Describe", modifier = Modifier.padding(start = 4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when {
+                    uiState.isGenerating -> Button(
+                        onClick = { viewModel.stopGeneration() },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Outlined.Stop, contentDescription = null)
+                        Text(" Stop", modifier = Modifier.padding(start = 4.dp))
+                    }
+                    else -> Button(
+                        onClick = { viewModel.describe() },
+                        enabled = uiState.imageUri != null && uiState.isModelReady,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
+                        Text(
+                            text = if (showDescriptionCard) " Describe" else " Explore again",
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
                 }
             }
 
@@ -147,6 +221,11 @@ fun DescriptionScreen(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        Text(
+                            text = "What is seen in the drawing...",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             uiState.categories.forEach { category ->
                                 AssistChip(
@@ -167,13 +246,15 @@ fun DescriptionScreen(
                             enabled = uiState.categoryInput.isNotBlank(),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Generate Fairy Tale")
+                            Icon(Icons.Outlined.AutoFixHigh, contentDescription = null)
+                            Text(" Generate Fairy Tale", modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }
             }
 
             // ── Description area ──────────────────────────────────────────────
+            if (showDescription) {
             OutlinedCard(
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
@@ -239,6 +320,6 @@ fun DescriptionScreen(
                     }
                 }
             }
+            }
         }
     }
-}

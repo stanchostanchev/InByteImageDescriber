@@ -3,6 +3,7 @@ package com.inbyte.imagedescriber.ui.chat
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.inbyte.imagedescriber.inference.InstructionRepository
@@ -20,11 +21,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 
 // Set to true to show Qwen3 <think>…</think> reasoning in the chat
 private const val SHOW_QWEN_REASONING = false
+
+// ── Shorter-story experiment (2026-07) ──────────────────────────────────
+// Set to false to instantly revert to the original longer-story behaviour:
+// generic "You are a storyteller." system prompt + 0.7 default temperature.
+private const val USE_SHORTER_STORIES = true
+private const val STORY_SYSTEM_PROMPT_DEFAULT = "You are a storyteller."
+private const val STORY_SYSTEM_PROMPT_SHORT =
+    "You are a storyteller. Write a short, complete fairy tale in no more than 5 short paragraphs, and end it clearly with \"The End.\""
+private const val STORY_TEMPERATURE_DEFAULT = 0.7f
+private const val STORY_TEMPERATURE_SHORT = 0.55f
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
@@ -41,6 +53,9 @@ class ChatViewModel @Inject constructor(
     private var clipPath: String = ""
     private var qwenPath: String = ""
     @Volatile private var isSending = false
+
+    // Drawing attached to the next story generation, so it can be shared alongside the tale
+    private var pendingStoryImageUri: Uri? = null
 
     init {
         loadModelFromAssets()
@@ -119,9 +134,35 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(inputText = text) }
     }
 
-    fun sendStory(text: String) {
-        _uiState.update { it.copy(messages = emptyList(), inputText = text) }
-        sendMessage()
+    fun sendStory(text: String, drawingUri: String? = null) {
+        viewModelScope.launch {
+            pendingStoryImageUri = drawingUri?.let { resolveShareableDrawingUri(it) }
+            _uiState.update { it.copy(messages = emptyList(), inputText = text) }
+            sendMessage()
+        }
+    }
+
+    /** Copies an asset drawing into cache and returns a FileProvider content:// Uri
+     *  suitable for attaching to a share Intent. Non-asset URIs are passed through as-is. */
+    private suspend fun resolveShareableDrawingUri(uri: String): Uri? = withContext(Dispatchers.IO) {
+        try {
+            if (uri.startsWith("file:///android_asset/")) {
+                val assetPath = uri.removePrefix("file:///android_asset/")
+                val sharedDir = File(appContext.cacheDir, "shared").apply { mkdirs() }
+                val cacheFile = File(sharedDir, File(assetPath).name)
+                if (!cacheFile.exists()) {
+                    appContext.assets.open(assetPath).use { input ->
+                        cacheFile.outputStream().use { input.copyTo(it) }
+                    }
+                }
+                FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", cacheFile)
+            } else {
+                Uri.parse(uri)
+            }
+        } catch (e: Exception) {
+            Log.d("InByteVM", "Failed to resolve shareable drawing uri: ${e.message}")
+            null
+        }
     }
 
     fun sendMessage() {
@@ -132,6 +173,7 @@ class ChatViewModel @Inject constructor(
 
         val userText = state.inputText.trim().ifEmpty { "Describe the image" }
         val imageUri = state.pendingImageUri
+        val storyImageUri = pendingStoryImageUri.also { pendingStoryImageUri = null }
 
         val userMsg = ChatMessage(
             role     = MessageRole.USER,
@@ -143,6 +185,7 @@ class ChatViewModel @Inject constructor(
             id          = assistantId,
             role        = MessageRole.ASSISTANT,
             text        = "",
+            imageUri    = if (imageUri == null) storyImageUri else null,
             isStreaming = true,
         )
 
@@ -197,12 +240,15 @@ class ChatViewModel @Inject constructor(
 
                     _uiState.update { it.copy(matchedCategory = category) }
 
+                    val systemPrompt = if (USE_SHORTER_STORIES) STORY_SYSTEM_PROMPT_SHORT else STORY_SYSTEM_PROMPT_DEFAULT
+                    val defaultTemperature = if (USE_SHORTER_STORIES) STORY_TEMPERATURE_SHORT else STORY_TEMPERATURE_DEFAULT
+
                     val chatmlPrompt =
-                        "<|im_start|>system\nYou are a storyteller.\n<|im_end|>\n" +
+                        "<|im_start|>system\n$systemPrompt\n<|im_end|>\n" +
                         "<|im_start|>user\n$instruction\n/no_think<|im_end|>\n" +
                         "<|im_start|>assistant\n"
 
-                    suspend fun runGeneration(temperature: Float = 0.7f): String {
+                    suspend fun runGeneration(temperature: Float = defaultTemperature): String {
                         val output    = StringBuilder()
                         val thinkBuf  = StringBuilder()
                         var inThink = false

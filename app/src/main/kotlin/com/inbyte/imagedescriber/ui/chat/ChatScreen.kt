@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TopAppBar
@@ -66,6 +67,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
@@ -75,11 +77,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.inbyte.imagedescriber.model.ChatMessage
 import com.inbyte.imagedescriber.model.MessageRole
+
+// Set to true to bring back the text/image/camera input bar at the bottom of the Story tab
+private const val SHOW_CHAT_INPUT_BAR = false
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -179,16 +185,18 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                     }
                 }
 
-                ChatInputBar(
-                    text = uiState.inputText,
-                    isGenerating = uiState.isGenerating,
-                    isModelLoaded = uiState.isModelLoaded,
-                    onTextChange = viewModel::onInputTextChange,
-                    onImageSelect = viewModel::onImageSelected,
-                    onSend = viewModel::sendMessage,
-                    onStop = viewModel::stopGeneration,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                )
+                if (SHOW_CHAT_INPUT_BAR) {
+                    ChatInputBar(
+                        text = uiState.inputText,
+                        isGenerating = uiState.isGenerating,
+                        isModelLoaded = uiState.isModelLoaded,
+                        onTextChange = viewModel::onInputTextChange,
+                        onImageSelect = viewModel::onImageSelected,
+                        onSend = viewModel::sendMessage,
+                        onStop = viewModel::stopGeneration,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                    )
+                }
             }
 
             // Loading overlay while model initialises
@@ -246,6 +254,7 @@ private fun ChatBubble(
                 Spacer(Modifier.height(4.dp))
             }
             if (message.text.isNotEmpty() || message.isStreaming) {
+                val context = LocalContext.current
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = if (isUser)
@@ -262,17 +271,46 @@ private fun ChatBubble(
                         Modifier.clickable { onUserBubbleClick(message.text) }
                     else Modifier,
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        Text(
-                            text = message.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isUser) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (message.isStreaming) { Spacer(Modifier.width(4.dp)); StreamingCursor() }
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        if (!isUser && !message.isStreaming) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        val drawingUri = message.imageUri
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            if (drawingUri != null) {
+                                                type = "image/*"
+                                                putExtra(android.content.Intent.EXTRA_STREAM, drawingUri)
+                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            } else {
+                                                type = "text/plain"
+                                            }
+                                            putExtra(android.content.Intent.EXTRA_TEXT, message.text)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(intent, "Share fairy tale"))
+                                    },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Share,
+                                        contentDescription = "Share fairy tale",
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = message.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (isUser) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (message.isStreaming) { Spacer(Modifier.width(4.dp)); StreamingCursor() }
+                        }
                     }
                 }
             }
@@ -302,8 +340,14 @@ private fun AssistantAvatar() {
             .background(MaterialTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center,
     ) {
-        Text("AI", style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer)
+        Text(
+            "Samodyva",
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 6.sp,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
 
