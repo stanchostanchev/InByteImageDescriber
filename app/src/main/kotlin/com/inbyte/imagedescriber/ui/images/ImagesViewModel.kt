@@ -43,4 +43,17 @@ class ImagesViewModel @Inject constructor(
     fun removeImage(uri: String) {
         _imageUris.value = _imageUris.value - uri
     }
+
+    // Persists the feed's scroll position across app restarts (process death and manual relaunches).
+    private val prefs = context.getSharedPreferences("images_prefs", Context.MODE_PRIVATE)
+
+    fun getSavedFeedScrollIndex(): Int = prefs.getInt("feed_scroll_index", 0)
+    fun getSavedFeedScrollOffset(): Int = prefs.getInt("feed_scroll_offset", 0)
+
+    fun saveFeedScrollPosition(index: Int, offset: Int) {
+        prefs.edit()
+            .putInt("feed_scroll_index", index)
+            .putInt("feed_scroll_offset", offset)
+            .apply()
+    }
 }

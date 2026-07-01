@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -33,11 +34,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -95,10 +95,16 @@ private const val SHOW_CHAT_INPUT_BAR = false
 fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val listState = rememberLazyListState()
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    var lastSeenMessageCount by rememberSaveable { mutableIntStateOf(uiState.messages.size) }
 
     LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty()) listState.animateScrollToItem(uiState.messages.size - 1)
+        // Only auto-scroll when new messages actually arrive, not when re-entering this
+        // tab with the same messages — that would override the user's restored scroll position.
+        if (uiState.messages.size > lastSeenMessageCount) {
+            listState.animateScrollToItem(uiState.messages.size - 1)
+        }
+        lastSeenMessageCount = uiState.messages.size
     }
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -126,14 +132,14 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
                         Column {
                             Text("Samodyva", style = MaterialTheme.typography.titleLarge)
                             Text("Fairy Tale", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                 ),
-                modifier = Modifier.statusBarsPadding(),
+                windowInsets = WindowInsets(0, 0, 0, 0),
             )
         },
     ) { padding ->
@@ -349,31 +355,23 @@ private fun StreamingCursor() {
 
 @Composable
 private fun AssistantAvatar() {
-    Box(
-        modifier = Modifier.size(32.dp).clip(CircleShape)
-            .background(MaterialTheme.colorScheme.secondaryContainer),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            "Samodyva",
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 6.sp,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    }
+    Image(
+        painter = painterResource(R.drawable.ic_launcher_photo),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(32.dp).clip(CircleShape),
+    )
 }
 
 @Composable
 private fun UserAvatar() {
     Box(
         modifier = Modifier.size(32.dp).clip(CircleShape)
-            .background(MaterialTheme.colorScheme.tertiaryContainer),
+            .background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center,
     ) {
         Text("U", style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onTertiaryContainer)
+            color = MaterialTheme.colorScheme.onPrimary)
     }
 }
 

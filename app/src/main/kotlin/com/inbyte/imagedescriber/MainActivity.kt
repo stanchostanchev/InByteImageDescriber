@@ -4,10 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoStories
@@ -16,6 +21,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -33,8 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.delay
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -62,8 +68,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             InByteTheme {
                 var showSplash by remember { mutableStateOf(true) }
+                val splashProgress = remember { Animatable(0f) }
                 LaunchedEffect(Unit) {
-                    delay(5000)
+                    splashProgress.animateTo(1f, animationSpec = tween(durationMillis = 5000, easing = LinearEasing))
                     showSplash = false
                 }
 
@@ -73,14 +80,31 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color(0xFF6D764F)),
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.splash_image),
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
+                        // Matches the splash image's own aspect ratio, so the progress bar's
+                        // bottom padding is relative to the image's real edge, not the screen's
+                        // (the image may be letterboxed if its aspect ratio differs from the device's).
+                        Box(
                             modifier = Modifier
+                                .align(Alignment.Center)
                                 .fillMaxSize()
-                                .align(Alignment.Center),
-                        )
+                                .aspectRatio(768f / 1376f),
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.splash_image),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            LinearProgressIndicator(
+                                progress = { splashProgress.value },
+                                color = Color(0xFF1F3A1A),
+                                trackColor = Color.Black.copy(alpha = 0.35f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 10.dp)
+                                    .fillMaxWidth(0.6f),
+                            )
+                        }
                     }
                 } else {
                 MainApp()
